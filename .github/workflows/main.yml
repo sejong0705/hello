@@ -2,9 +2,9 @@ name: 전자정부프레임워크 Docker 빌드 및 배포
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+  #push:
+    #branches:
+      #- main
 
 jobs:
   # ─── 작업 1: 빌드 + 이미지 push ───
