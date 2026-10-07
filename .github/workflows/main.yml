@@ -1,0 +1,47 @@
+name: 전자정부프레임워크 Docker 빌드 및 배포
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 가져오기
+        uses: actions/checkout@v4
+
+      - name: JDK 11 설치
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: maven
+
+      - name: Maven으로 war 빌드
+        run: mvn -B clean package
+
+      - name: Docker Hub 로그인
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Docker 이미지 빌드 및 push
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/hello:latest .
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/hello:latest
+
+      - name: SSH 키 준비
+        run: |
+          echo "${{ secrets.EC2_KEY }}" > key.pem
+          chmod 600 key.pem
+
+      - name: EC2에서 이미지 pull 및 컨테이너 교체
+        run: |
+          ssh -i key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_HOST }} << EOF
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/hello:latest
+            docker stop hello || true
+            docker rm hello || true
+            docker run -d --name hello --network host --restart always ${{ secrets.DOCKERHUB_USERNAME }}/hello:latest
+            docker image prune -f
+          EOF
